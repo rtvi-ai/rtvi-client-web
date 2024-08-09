@@ -50,8 +50,10 @@ export abstract class Transport {
 
   abstract initDevices(): Promise<void>;
 
-  abstract connect(authBundle: AuthBundle): Promise<void>;
-
+  abstract connect(
+    authBundle: AuthBundle,
+    abortController: AbortController
+  ): Promise<void>;
   abstract disconnect(): Promise<void>;
 
   abstract getAllMics(): Promise<MediaDeviceInfo[]>;

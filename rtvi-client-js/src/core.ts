@@ -57,6 +57,8 @@ export abstract class Client extends (EventEmitter as new () => TypedEmitter<Voi
   protected _options: VoiceClientOptions;
   private _transport: Transport;
   private readonly _baseUrl: string;
+  private _abortController: AbortController | undefined;
+  private _handshakeTimeout: ReturnType<typeof setTimeout> | undefined;
 
   constructor(options: VoiceClientOptions) {
     super();
@@ -65,7 +67,6 @@ export abstract class Client extends (EventEmitter as new () => TypedEmitter<Voi
 
     // Wrap transport callbacks with event triggers
     // This allows for either functional callbacks or .on / .off event listeners
-    // @TODO tidy up with a loop
     const wrappedCallbacks: VoiceEventCallbacks = {
       ...options.callbacks,
       onConnected: () => {
@@ -184,34 +185,65 @@ export abstract class Client extends (EventEmitter as new () => TypedEmitter<Voi
   }
 
   public async start() {
-    this._transport.state = "handshaking";
+    this._abortController = new AbortController();
 
-    const config: VoiceClientConfigOptions = this._options.config!;
+    return new Promise((resolve, reject) => {
+      (async () => {
+        if (this._transport.state === "idle") {
+          await this._transport.initDevices();
+        }
 
-    // Send POST request to the provided base_url to connect and start the bot
-    // @params config - VoiceClientConfigOptions object with the configuration
+        this._transport.state = "handshaking";
 
-    let authBundle: AuthBundle;
+        const config: VoiceClientConfigOptions = this._options.config!;
 
-    try {
-      authBundle = await fetch(`${this._baseUrl}`, {
-        method: "POST",
-        mode: "cors",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ config: { ...config } }),
-      }).then((res) => res.json());
-    } catch (e) {
-      throw new VoiceErrors.TransportAuthBundleError(
-        "Failed to fetch auth bundle from provided base url"
-      );
-    }
+        // Set a timer for the bot to enter a ready state, otherwise abort the attempt
+        if (this._options.timeout) {
+          this._handshakeTimeout = setTimeout(() => {
+            this._abortController?.abort();
+            this._transport.disconnect();
+            reject(new VoiceErrors.ConnectionTimeoutError());
+          }, this._options.timeout);
+        }
 
-    await this._transport.connect(authBundle);
+        // Send POST request to the provided base_url to connect and start the bot
+        // @params config - VoiceClientConfigOptions object with the configuration
+        let authBundle: AuthBundle;
+
+        try {
+          authBundle = await fetch(`${this._baseUrl}`, {
+            method: "POST",
+            mode: "cors",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ config: { ...config } }),
+            signal: this._abortController?.signal,
+          }).then((res) => res.json());
+        } catch (e) {
+          clearTimeout(this._handshakeTimeout);
+          reject(
+            new VoiceErrors.TransportAuthBundleError(
+              "Failed to fetch auth bundle from provided base url"
+            )
+          );
+          return;
+        }
+
+        await this._transport.connect(
+          authBundle,
+          this._abortController as AbortController
+        );
+
+        resolve(undefined);
+      })();
+    });
   }
 
   public async disconnect() {
+    if (this._abortController) {
+      this._abortController.abort();
+    }
     await this._transport.disconnect();
   }
 
@@ -416,6 +448,7 @@ export abstract class Client extends (EventEmitter as new () => TypedEmitter<Voi
 
     switch (ev.type) {
       case VoiceMessageType.BOT_READY:
+        clearTimeout(this._handshakeTimeout);
         this._transport.state = "ready";
         this._options.callbacks?.onBotReady?.();
         break;

@@ -14,6 +14,7 @@ import {
   VoiceClientConfigOptions,
   VoiceEvent,
   TransportAuthBundleError,
+  ConnectionTimeoutError,
 } from "realtime-ai";
 
 export const DemoApp = () => {
@@ -44,6 +45,8 @@ export const DemoApp = () => {
       if (e instanceof RateLimitError) {
         setError("Demo is currently at capacity. Please try again later.");
       } else if (e instanceof TransportAuthBundleError) {
+        setError(e.message);
+      } else if (e instanceof ConnectionTimeoutError) {
         setError(e.message);
       } else {
         setError("Unknown error occurred");

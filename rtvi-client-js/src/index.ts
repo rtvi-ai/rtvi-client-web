@@ -41,9 +41,15 @@ export interface VoiceClientOptions {
 
   /**
    * Service configuration options for services and further customization
-   *
    */
   config?: VoiceClientConfigOptions;
+
+  /**
+   * Handshake timeout
+   *
+   * How long should the client wait for the bot ready event (when authenticating / requesting an agent)
+   */
+  timeout?: number;
 
   // @@ Not yet implemented @@
   // pipeline?: Array<object>;

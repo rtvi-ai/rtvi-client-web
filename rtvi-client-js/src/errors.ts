@@ -7,6 +7,16 @@ export class VoiceError extends Error {
     this.error = { message };
   }
 }
+
+export class ConnectionTimeoutError extends VoiceError {
+  override readonly status = 500;
+  constructor(message?: string | undefined) {
+    super(
+      message ?? "Bot did not enter ready state within the specified timeout"
+    );
+  }
+}
+
 export class TransportAuthBundleError extends VoiceError {
   override readonly status = 500;
   constructor(message?: string | undefined) {

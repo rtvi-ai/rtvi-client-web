@@ -11,6 +11,7 @@ import { DemoApp } from "./DemoApp";
 
 const voiceClient = new VoiceClient({
   baseUrl: import.meta.env.VITE_BASE_URL,
+  timeout: 3 * 1000,
   enableMic: true,
   callbacks: {
     onConnected: () => {
