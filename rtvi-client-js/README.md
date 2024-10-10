@@ -13,7 +13,7 @@ npm install realtime-ai
 
 ## Quick Start
 
-Instantiate a `VoiceClient` instance, wire up the bot's audio, and start the conversation:
+Instantiate a `RTVIClient` instance, wire up the bot's audio, and start the conversation:
 
 ```ts
 import { RTVIEvent, RTVIMessage, RTVIClient } from "realtime-ai";
@@ -53,7 +53,7 @@ const rtviClient = new RTVIClient({
         ]
       }
     ]
-  }
+  },
   enableMic: true,
   enableCam: false,
   timeout: 15 * 1000,

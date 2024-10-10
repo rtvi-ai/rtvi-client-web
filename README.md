@@ -107,7 +107,7 @@ const rtviClient = new RTVIClient({
         ]
       }
     ]
-  }
+  },
   enableMic: true,
   enableCam: false,
   timeout: 15 * 1000,
