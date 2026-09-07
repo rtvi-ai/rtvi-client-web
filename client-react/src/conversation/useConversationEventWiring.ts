@@ -375,6 +375,29 @@ export function useConversationEventWiring() {
     )
   );
 
+  // user-llm-text fires when the user's input reaches the LLM — both in voice
+  // mode (after STT) and in chat mode (typed text, no STT). In voice mode
+  // user-transcription has already created an in-progress user message, so we
+  // only need to finalize it. In chat mode no user message exists yet, so we
+  // create one from the LLM text first, then finalize.
+  useRTVIClientEvent(
+    RTVIEvent.UserLlmText,
+    useAtomCallback(
+      useCallback((get, set, data) => {
+        const messages = get(messagesAtom);
+        const lastUserIdx = findLastIndex(
+          messages,
+          (m: ConversationMessage) => m.role === "user"
+        );
+
+        if (lastUserIdx === -1 || messages[lastUserIdx].final) {
+          upsertUserTranscript(get, set, data.text ?? "", true);
+        }
+        finalizeLastMessage(get, set, "user");
+      }, [])
+    )
+  );
+
   useRTVIClientEvent(
     RTVIEvent.UserStoppedSpeaking,
     useAtomCallback(
