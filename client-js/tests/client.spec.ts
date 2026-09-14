@@ -241,6 +241,68 @@ describe("PipecatClient Methods", () => {
     expect(eventData.result.success).toBe(true);
   });
 
+  test("llm-function-call events carry parent_tool_call_id to callbacks and listeners", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const callbackData: any[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const eventData: any[] = [];
+
+    const clientWithCallbacks = new PipecatClient({
+      transport: TransportStub.create(),
+      callbacks: {
+        onLLMFunctionCallStarted: (data) => callbackData.push(data),
+        onLLMFunctionCallInProgress: (data) => callbackData.push(data),
+        onLLMFunctionCallStopped: (data) => callbackData.push(data),
+      },
+    });
+    clientWithCallbacks.on(RTVIEvent.LLMFunctionCallStarted, (data) =>
+      eventData.push(data)
+    );
+    clientWithCallbacks.on(RTVIEvent.LLMFunctionCallInProgress, (data) =>
+      eventData.push(data)
+    );
+    clientWithCallbacks.on(RTVIEvent.LLMFunctionCallStopped, (data) =>
+      eventData.push(data)
+    );
+
+    const transport = clientWithCallbacks.transport as TransportStub;
+    transport.handleMessage({
+      id: "1",
+      label: "rtvi-ai",
+      type: "llm-function-call-started",
+      data: { function_name: "child", parent_tool_call_id: "call-parent" },
+    });
+    transport.handleMessage({
+      id: "2",
+      label: "rtvi-ai",
+      type: "llm-function-call-in-progress",
+      data: {
+        function_name: "child",
+        tool_call_id: "call-child",
+        parent_tool_call_id: "call-parent",
+        arguments: {},
+      },
+    });
+    transport.handleMessage({
+      id: "3",
+      label: "rtvi-ai",
+      type: "llm-function-call-stopped",
+      data: {
+        function_name: "child",
+        tool_call_id: "call-child",
+        parent_tool_call_id: "call-parent",
+        cancelled: false,
+        result: "ok",
+      },
+    });
+
+    expect(callbackData).toHaveLength(3);
+    expect(eventData).toHaveLength(3);
+    for (const data of [...callbackData, ...eventData]) {
+      expect(data.parent_tool_call_id).toBe("call-parent");
+    }
+  });
+
   test("deprecated llm-function-call should trigger callback and emit event", async () => {
     let callbackTriggered = false;
     let eventTriggered = false;
