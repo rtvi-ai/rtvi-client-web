@@ -906,6 +906,7 @@ export function addFunctionCall(
   data: {
     function_name?: string;
     tool_call_id?: string;
+    parent_tool_call_id?: string;
     args?: Record<string, unknown>;
   }
 ) {
@@ -948,6 +949,7 @@ export function addFunctionCall(
     functionCall: {
       function_name: data.function_name,
       tool_call_id: data.tool_call_id,
+      parent_tool_call_id: data.parent_tool_call_id,
       args: data.args,
       status: "started",
     },
@@ -966,7 +968,13 @@ export function updateFunctionCall(
   updates: Partial<
     Pick<
       FunctionCallData,
-      "status" | "result" | "cancelled" | "args" | "function_name" | "tool_call_id"
+      | "status"
+      | "result"
+      | "cancelled"
+      | "args"
+      | "function_name"
+      | "tool_call_id"
+      | "parent_tool_call_id"
     >
   >
 ): boolean {
@@ -986,6 +994,10 @@ export function updateFunctionCall(
     functionCall: {
       ...existing.functionCall!,
       ...updates,
+      // parent_tool_call_id is kept once set; a later event without it does
+      // not clear it.
+      parent_tool_call_id:
+        updates.parent_tool_call_id ?? existing.functionCall?.parent_tool_call_id,
     },
   };
   messages[index] = updated;
@@ -1004,7 +1016,10 @@ export function updateLastStartedFunctionCall(
   get: Getter,
   set: Setter,
   updates: Partial<
-    Pick<FunctionCallData, "status" | "tool_call_id" | "args" | "function_name">
+    Pick<
+      FunctionCallData,
+      "status" | "tool_call_id" | "parent_tool_call_id" | "args" | "function_name"
+    >
   >
 ): boolean {
   const messages = [...get(messagesAtom)];
@@ -1023,6 +1038,10 @@ export function updateLastStartedFunctionCall(
     functionCall: {
       ...existing.functionCall!,
       ...updates,
+      // parent_tool_call_id is kept once set; a later event without it does
+      // not clear it.
+      parent_tool_call_id:
+        updates.parent_tool_call_id ?? existing.functionCall?.parent_tool_call_id,
     },
   };
   messages[index] = updated;
@@ -1040,7 +1059,7 @@ export function updateLastStartedFunctionCall(
 export function handleFunctionCallStarted(
   get: Getter,
   set: Setter,
-  data: { function_name?: string }
+  data: { function_name?: string; parent_tool_call_id?: string }
 ) {
   const messages = get(messagesAtom);
   const lastFc = findLast(messages,
@@ -1060,12 +1079,16 @@ export function handleFunctionCallStarted(
     ) {
       updateFunctionCall(get, set, lastFc.functionCall.tool_call_id, {
         function_name: data.function_name,
+        parent_tool_call_id: data.parent_tool_call_id,
       });
     }
     return;
   }
 
-  addFunctionCall(get, set, { function_name: data.function_name });
+  addFunctionCall(get, set, {
+    function_name: data.function_name,
+    parent_tool_call_id: data.parent_tool_call_id,
+  });
 }
 
 export function handleFunctionCallInProgress(
@@ -1074,6 +1097,7 @@ export function handleFunctionCallInProgress(
   data: {
     function_name?: string;
     tool_call_id: string;
+    parent_tool_call_id?: string;
     args?: Record<string, unknown>;
   }
 ) {
@@ -1081,6 +1105,7 @@ export function handleFunctionCallInProgress(
   const updated = updateLastStartedFunctionCall(get, set, {
     function_name: data.function_name,
     tool_call_id: data.tool_call_id,
+    parent_tool_call_id: data.parent_tool_call_id,
     args: data.args,
     status: "in_progress",
   });
@@ -1089,6 +1114,7 @@ export function handleFunctionCallInProgress(
     // Tier 2: Try updating an existing entry by tool_call_id
     const found = updateFunctionCall(get, set, data.tool_call_id, {
       function_name: data.function_name,
+      parent_tool_call_id: data.parent_tool_call_id,
       args: data.args,
       status: "in_progress",
     });
@@ -1098,6 +1124,7 @@ export function handleFunctionCallInProgress(
       addFunctionCall(get, set, {
         function_name: data.function_name,
         tool_call_id: data.tool_call_id,
+        parent_tool_call_id: data.parent_tool_call_id,
         args: data.args,
       });
       updateFunctionCall(get, set, data.tool_call_id, {
@@ -1113,6 +1140,7 @@ export function handleFunctionCallStopped(
   data: {
     function_name?: string;
     tool_call_id: string;
+    parent_tool_call_id?: string;
     result?: unknown;
     cancelled?: boolean;
   }
@@ -1120,6 +1148,7 @@ export function handleFunctionCallStopped(
   // Tier 1: Try updating by tool_call_id
   const found = updateFunctionCall(get, set, data.tool_call_id, {
     function_name: data.function_name,
+    parent_tool_call_id: data.parent_tool_call_id,
     status: "completed",
     result: data.result,
     cancelled: data.cancelled,
@@ -1130,6 +1159,7 @@ export function handleFunctionCallStopped(
     const matched = updateLastStartedFunctionCall(get, set, {
       function_name: data.function_name,
       tool_call_id: data.tool_call_id,
+      parent_tool_call_id: data.parent_tool_call_id,
     });
     if (matched) {
       updateFunctionCall(get, set, data.tool_call_id, {

@@ -296,6 +296,63 @@ describe("function call lifecycle - integration", () => {
   // -----------------------------------------------------------------------
   // Deduplication
   // -----------------------------------------------------------------------
+  describe("parent_tool_call_id", () => {
+    it("carries the parent from InProgress through to the completed entry", () => {
+      harness.handleFunctionCallStarted({ function_name: "child" });
+      harness.handleFunctionCallInProgress({
+        function_name: "child",
+        tool_call_id: "call_child",
+        parent_tool_call_id: "call_parent",
+        args: {},
+      });
+      harness.handleFunctionCallStopped({
+        function_name: "child",
+        tool_call_id: "call_child",
+        parent_tool_call_id: "call_parent",
+        result: "ok",
+        cancelled: false,
+      });
+
+      const fc = harness.getMessages()[0].functionCall!;
+      expect(fc.status).toBe("completed");
+      expect(fc.parent_tool_call_id).toBe("call_parent");
+    });
+
+    it("keeps the parent when a later event omits it", () => {
+      harness.handleFunctionCallStarted({
+        function_name: "child",
+        parent_tool_call_id: "call_parent",
+      });
+      harness.handleFunctionCallInProgress({
+        function_name: "child",
+        tool_call_id: "call_child",
+        args: {},
+      });
+      harness.handleFunctionCallStopped({
+        function_name: "child",
+        tool_call_id: "call_child",
+        result: "ok",
+        cancelled: false,
+      });
+
+      const fc = harness.getMessages()[0].functionCall!;
+      expect(fc.status).toBe("completed");
+      expect(fc.parent_tool_call_id).toBe("call_parent");
+    });
+
+    it("is absent for a call the bot's LLM made itself", () => {
+      harness.handleFunctionCallInProgress({
+        function_name: "top",
+        tool_call_id: "call_top",
+        args: {},
+      });
+
+      expect(
+        harness.getMessages()[0].functionCall!.parent_tool_call_id
+      ).toBeUndefined();
+    });
+  });
+
   describe("deduplication", () => {
     it("addFunctionCall deduplicates by tool_call_id", () => {
       harness.addFunctionCall({
